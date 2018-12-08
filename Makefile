@@ -25,6 +25,7 @@ all: abosl.py abosloader.py
 	chmod +x abosl
 
 install: all abosl abosloader.pyc
+	pip2 install intelhex pyserial
 	mkdir -p /opt/abosloader
 	cp abosl /opt/abosloader
 	cp abosl.pyc /opt/abosloader
