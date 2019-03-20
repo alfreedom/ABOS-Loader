@@ -19,13 +19,9 @@
 #   Written by Alfredo Orozco <alfredoopa@gmail.com>                         #
 ##############################################################################
 
-all: abosl.py abosloader.py
-	python2 -m compileall abosloader.py abosl.py
-	echo 'python2 /opt/abosloader/abosl.pyc "$$@"' > abosl
-	chmod +x abosl
 
-install: all abosl abosloader.pyc
-	pip2 install intelhex pyserial
+
+install:  abosl abosl.pyc abosloader.pyc
 	mkdir -p /opt/abosloader
 	cp abosl /opt/abosloader
 	cp abosl.pyc /opt/abosloader
@@ -36,4 +32,21 @@ uninstall:
 	rm -Rf /opt/abosloader
 	
 clean:
+	rm -rf __pycache__/
 	rm -Rf abosl abosl.pyc abosloader.pyc
+
+python2: clean abosl.py, abosliader.py
+	python2 -m compileall abosloader.py abosl.py 
+	rm -rf __pycache__/
+	echo 'python2 /opt/abosloader/abosl.pyc "$$@"' > abosl
+	chmod +x abosl
+	pip2 install intelhex pyserial
+
+python3: clean abosl.py abosloader.py
+	python3 -m compileall abosloader.py abosl.py 
+	mv __pycache__/abosl.cpython* ./abosl.pyc
+	mv __pycache__/abosloader.cpython* ./abosloader.pyc
+	rm -rf __pycache__/
+	echo 'python3 /opt/abosloader/abosl.pyc "$$@"' > abosl
+	chmod +x abosl
+	pip3 install intelhex pyserial

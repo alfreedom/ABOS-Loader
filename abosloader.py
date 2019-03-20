@@ -4,7 +4,7 @@
  ******************************************************************************
  *   file: abosloader.py                                                      *
  *                                                                            *
- *	 ABOS Loader                                                                     *
+ *   ABOS Loader                                                                     *
  *                                                                            *
  *   This program is free software: you can redistribute it and/or modify     *
  *   it under the terms of the GNU General Public License as published by     *
@@ -28,222 +28,274 @@ import serial
 import time
 
 
-SYNC_COMMAND				= 0x16
-ENTER_BOOTLOADER_COMMAND	= 0x0F
-END_TRANSMISSION_COMMAND	= 0x04
-ACK_COMMAND					= 0x06
-NACK_COMMAND				= 0x15
-CANCEL_BOOTLOADER_COMMAND	= 0x1B
-PAGE_WRITE_COMMAND			= 0x02
-CANCELATION_COMMAND			= 0x18
+SYNC_COMMAND                = 0x16
+ENTER_BOOTLOADER_COMMAND    = 0x0F
+END_TRANSMISSION_COMMAND    = 0x04
+ACK_COMMAND                 = 0x06
+NACK_COMMAND                = 0x15
+CANCEL_BOOTLOADER_COMMAND   = 0x1B
+PAGE_WRITE_COMMAND          = 0x02
+CANCELATION_COMMAND         = 0x18
 
-'''
-	Ejecuta la rutina de carga del programa
-'''
-def Run(hexfile, port, baud, verbose, progress_func):
-  
-  ihex = intelhex.IntelHex()
-  tries = 0
-  maxtries = 5
-  err_code = 0
+class AbosLoader:
+    '''
+        Clase para manejar el cargador Abos Loader para el bootloader ABOS
+        de los microcontroladores AVR.
+    '''
+    def __init__(self):
+        self.hexfile = intelhex.IntelHex()
+        pass
 
-  # Intenta leer e interpretar el archivo .hex
-  if verbose:
-    print 'Reading hex file "'+hexfile+'"...'
-  try:
-      ihex.fromfile(hexfile,format='hex')
-  except (IOError, intelhex.IntelHexError):
-      e = sys.exc_info()[1]
-      return 1, ('Error 1: reading hex file: %s\n' % e)
+    # Algoritmo principal para manejar la lógica de carga de un programa con el bootloader ABOS
+    def run(self, hexfile, port, baud, verbose, progress_func=None, messages_func=None):
+        self.filename = hexfile
+        self.progress_func = progress_func
+        self.messages_func = messages_func
 
-  # Calcula el tamaño del archivo .hex
-  program_size = len(ihex.tobinarray())
-  if verbose:
-    print '\r\nHex file size: %d bytes\r\n' % program_size
+        # Lee el archivo hexadecimal
+        self.__send_message(code=0, message = 'Reading hex file {}...'.format(self.filename))
+        error = self.__read_hexfile()
+        if error:
+            return 1 
+         # Calcula el tamaño del archivo .hex
+        program_size = len(self.hexfile.tobinarray())
 
-  if verbose:
-    print 'Opening serial port...'
+        # Abre el puerto serial
+        self.__send_message(code=0, message='Opening Serial Port...')
+        error = self.__open_serial_port(port=port, baudrate=baud)
+        if error:
+            return 1
 
-  # Intenta abrir el puerto serie.
-  try:
-    ser_port = serial.Serial(port, baud, timeout=.3)
-  except serial.SerialException as e:
-    return 2, ('Error 2: opening port %s\n' % port)
+        # Reinicia el micro AVR con el pin DTR
+        self.__send_message(code=0, message='Restarting AVR via DTR pin...')
+        self.__restart_avr()
 
-  if verbose:
-    print('Restarting AVR via DTR pin...\r\n')
+        # Envía caracter de sincronización y obtiene la respuesta desde el micro AVR
+        self.__send_message(code=0, message='Requesting MCU info...')
+        response, error = self.__send_sync()
+        if error:
+            return 1
 
-  # Reinicia el AVR conectado al puerto
-  RestartAVR(ser_port)
+        # Calcula el número de paginas a escribir.
+        self.pages_to_write = program_size // response['page_size'] + (1 if program_size % response['page_size'] != 0 else 0)
+        self.page_size = response['page_size']
+        self.__send_message(code=0, message='Hex file size: %d bytes' % program_size)
+        self.__send_message(code=0, message='ABOS Version in AVR: %s' % response['abos_version'])
+        self.__send_message(code=0, message='AVR memory size: %d bytes (%d KB)' % (response['flash_size'], response['flash_size']/1024))
+        self.__send_message(code=0, message='AVR Page size: %d bytes' % response['page_size'])
+        self.__send_message(code=0, message='Pages to write: %d' % self.pages_to_write)
 
-  if verbose:
-    print('Requesting MCU info...')
-  # Envía el caracter de sincronización
-  response = SendSync(ser_port, SYNC_COMMAND)
+        # Verifica que el tamaño del programa no sea mayor que el espacio disponible en el micro
+        if program_size > response['flash_size']:
+            self.__send_message(code=5, message='Error 5: The program is larger than the space available in the microcontroller.')
+            self.__cancel_bootloader_mode()
+            return 1
 
-  # Si no responde con 8 bytes muestra error
-  if len(response) != 8:
-    return 3, ('Error 3: Communication error with the ABOS bootloader, responds with %d \n' % len(response))
+        # Envía comando para entrar en modo bootloader
+        self.__send_message(code=0, message="Sendig Enter Bootlader Command...")
+        error = self.__enter_bootloader_mode()
+        if error:
+            return;
 
-  # Si no responde con ACK muestra error
-  if response[0] != ACK_COMMAND:
-    return 4, ('Error 4: The AVR bootloader not responds\n')
+        # Envía los datos del programa al bootloader
+        self.__send_message(code=0, message='Writing %d bytes...' % program_size)
+        start = time.time()
+        error = self.__write_program()
+        if error:
+            return 1
+        # Calcula el tiempo transcurrido de la carga
+        elapsed = time.time() - start
 
-  # Guarda el tamaño de página de la respuesta en bytes
-  page_size = response[2] << 8
-  page_size |= response[1]
+        # Envia comando para finalizar escritura
+        self.__send_message(code=0, message="Sending End Transmission Command...")
+        error = self.__send_end_transmission_command()
+        if error:
+            return 1
 
-  # Guarda el espacio de memoria disponible para el programa en bytes
-  flash_size = response[4] << 8
-  flash_size |= response [3]
-  flash_size *= 1024
+        # Muestra el tiempo de carga del programa
+        self.__send_message(code=0, message="¡Done! Program loaded in %.2f seconds" % elapsed)
 
-  # Guarda la versión del Bootloader grabada en el micro
-  abos_version = '%d.%d.%d' % (response[5], response[6], response[7])
-
-  # Calcula el número de paginas a escribir.
-  pages_to_write = program_size / page_size + (1 if program_size % page_size != 0 else 0)
-
-  print('ABOS Version in microcontroller: %s' % abos_version)
-  if verbose:
-    print('Flash memory size: %d bytes (%d KB)' % (flash_size, flash_size/1024))
-    print('Page size: %d bytes' % page_size)
-    print('Pages to write: %d\r\n' % pages_to_write)
-  
-  cancel = False;
-  if program_size > flash_size:
-    exit = False
-    print('The program is larger than the space available in the microcontroller.')
-    while not exit:
-      try:
-        print('Do you want to load it anyway?')
-        op = raw_input('[Yes/no]: ')
-        if op == '':
-          op = 'Y'
-        op = op.upper();
-        if op == 'Y' or op == 'YES':
-          cancel = False;
-          exit=True
-        elif op == 'N' or op == 'NO':
-          cancel = True
-          exit=True
-      except:
-        cancel = True
-        exit=True
-
-  if cancel:
-    # Envia comando ESC para cancelar la carga
-    if verbose:
-      print("\r\nSendig Cancel Bootloader Command...")
-    cmd = bytearray([CANCEL_BOOTLOADER_COMMAND])
-  else:
-    # Envia comando ACK para entrar al modo bootlaoder.
-    if verbose:
-      print("\r\nSendig Enter Bootlader Command...")
-    cmd = bytearray([ENTER_BOOTLOADER_COMMAND])
-
-  try:
-	ser_port.write(cmd)
-	# Lee la respuesta de un byte = ACK
-	response = bytearray(ser_port.read(1))
-	if len(response) != 1 and response[0] != ACK_COMMAND:
-  		return 5, ('\r\n\r\nError 5: The AVR bootloader not responds to Enter Bootloader command\r\n')
-  except Exception as e:
-  	return 6, ('\r\n\r\nError 6: The communication with the AVR was interrumped\r\n')
-
-  if cancel:
-    return;
-
-  current_page = 0
-  exit = False
-
-  print('\r\nWriting %d bytes...' % program_size)
-
-  # Obtiene el tiempo inicial para la carga del programa
-  start = time.time()
-  while not exit:
-
-  	# Envía código STX para inicio de escritura de página
-    if verbose:
-      print("\r\nSendig Page Write Command...")
-
-    cmd = bytearray([PAGE_WRITE_COMMAND])
-    try:
-    	ser_port.write(cmd)
-    	# Lee la respuesta de un byte = ACK
-    	esponse = bytearray(ser_port.read(1))
-    	if len(response) != 1 and response[0] != ACK_COMMAND:
-    		return 7, ('Error 7: The AVR bootloader not responds to start write page command\n')
-    except Exception as e:
-		return 8, ('\r\n\r\nError 8: The communication with the AVR was interrumped\n')
-		return 1
-
-    if verbose:
-      print("Writing page %d of %d...\r\n" %(current_page+1, pages_to_write))
-    
-    # Actualiza el progreso de carga
-    progress_func(((current_page+1)*1.0)/pages_to_write, verbose);
-
-    # Obtiene la página a enviar
-    data_to_send = bytearray(ihex.tobinarray(start = (current_page*page_size), size=page_size))
-    
-    try:
-	    # Envía la página
-	    ser_port.write(data_to_send)
-    	# Lee la respuesta de un byte = ACK
-	    response = bytearray(ser_port.read(1))
-	    if len(response) != 1 and response[0] != ACK_COMMAND:
-	      return 9, ('Error 9: The AVR bootloader not responds to end write page command\n')
-    except Exception as e:
-    	return 10, ('\r\n\r\nError 10: The communication with the AVR was interrumped\r\n')
-
-    # Avanza a la siguiente página
-    current_page += 1
-
-    # Si ya envió todas las paginas sale del ciclo.
-    if current_page == pages_to_write:
-      exit = 1
-
-  # Calcula el tiempo transcurrido de la carga
-  elapsed = time.time() - start
-
-  # Envia comando para finalizar escritura
-  if verbose:
-    print("\r\nSending End Transmission Command...")
-  cmd = bytearray([END_TRANSMISSION_COMMAND])
-
-  try:
-    ser_port.write(cmd)
-    # Lee la respuesta de un byte = ACK
-    response = bytearray(ser_port.read(1))
-    if len(response) != 1 and response[0] != ACK_COMMAND:
-        return 11, ('\r\n\r\nError 11: The AVR bootloader not responds to finish program command\r\n')
-  except Exception as e:
-    return 12, ('\r\n\r\nError 12: The communication with the AVR was interrumped\r\n')
-
-  # Muestra el tiempo de carga del programa
-  return 0, ("\r\n\r\n¡Done! Program loaded in %.2f seconds\n" % elapsed)
+        return 0
 
 
-'''
-	Reinicia el micro mediante el pin DTR del puerto serie
-'''
-def RestartAVR(serial_port):
-  serial_port.setDTR(False)
-  serial_port.setDTR(True)
-  serial_port.setDTR(False)
+    def __send_message(self, code=0, message=''):
+        if self.messages_func is not None:
+            self.messages_func(code=code, message=message)
 
-'''
-	Envía el caracter de sincronización y devuelve la respuesta del bootloader.
-'''
-def SendSync(serial_port, cmd):
-  maxtries = 5
-  # Envía el caracter de sincronización maxtries veces
-  cmd = bytearray([cmd])
-  for item in range(maxtries):  
-    serial_port.write(cmd)
-    response = bytearray(serial_port.read(8))
-    if len(response) == 8:
-      break;
 
-  return response
+    def __read_hexfile(self):
+        
+        # Intenta leer e interpretar el archivo .hex
+        try:
+                self.hexfile.fromfile(self.filename,format='hex')
+        except (IOError, intelhex.IntelHexError):
+                e = sys.exc_info()[1]
+                self.__send_message(code=1, message='Error 1: reading hex file: "%s"' % e)
+                return None, True
+
+        return False
+
+
+    def __open_serial_port(self, port, baudrate):
+        # Intenta abrir el puerto serie.
+        try:
+            self.serial_port = serial.Serial(port, baudrate, timeout=.3)
+        except serial.SerialException as e:
+            self.__send_message(code=2, message='Error 2: opening port %s' % self.port)
+            return True
+
+        return False
+
+
+    def __restart_avr(self):
+        self.serial_port.setDTR(False)
+        self.serial_port.setDTR(True)
+        self.serial_port.setDTR(False)
+
+
+    def __send_sync(self):
+        maxtries = 5
+        # Envía el caracter de sincronización maxtries veces
+        cmd = bytearray([SYNC_COMMAND])
+        for item in range(maxtries):  
+            self.serial_port.write(cmd)
+            response = bytearray(self.serial_port.read(8))
+            if len(response) == 8:
+                break;
+
+        # Si no responde con 8 bytes muestra error
+        if len(response) != 8:
+            self.__send_message(code=3, message='Error 3: Communication error with the ABOS bootloader, responds with %d' % len(response))
+            return None, True
+
+        # Si no responde con ACK muestra error
+        if response[0] != ACK_COMMAND:
+            self.__send_message(code=4, message='Error 4: The AVR bootloader not responds')
+            return None, True
+
+        # Guarda el tamaño de página de la respuesta en bytes
+        ret = {}
+        ret['page_size'] = response[2] << 8
+        ret['page_size'] |= response[1]
+
+        # Guarda el espacio de memoria disponible para el programa en bytes
+        ret['flash_size'] = response[4] << 8
+        ret['flash_size'] |= response [3]
+        ret['flash_size'] *= 1024
+
+        # Guarda la versión del Bootloader grabada en el micro
+        ret['abos_version'] = '%d.%d.%d' % (response[5], response[6], response[7])
+
+        return ret, False
+
+
+    def __enter_bootloader_mode(self):
+        cmd = bytearray([ENTER_BOOTLOADER_COMMAND])
+
+        try:
+            self.serial_port.write(cmd)
+            # Lee la respuesta de un byte = ACK
+            response = bytearray(self.serial_port.read(1))
+            if len(response) != 1 and response[0] != ACK_COMMAND:
+                self.__send_message(code=6, message='Error 6: The AVR bootloader not responds to Enter Bootloader command')
+                return True
+        except Exception as e:
+            self.__send_message(code=7, message='Error 7: The communication with the AVR was interrumped')
+            return True
+
+        return False
+
+
+    def __cancel_bootloader_mode(self):
+        cmd = bytearray([CANCEL_BOOTLOADER_COMMAND])
+
+        try:
+            self.serial_port.write(cmd)
+            # Lee la respuesta de un byte = ACK
+            response = bytearray(self.serial_port.read(1))
+            if len(response) != 1 and response[0] != ACK_COMMAND:
+                self.__send_message(code=6, message='Error 8: The AVR bootloader not responds to Cancel Bootloader command')
+                return True
+        except Exception as e:
+            self.__send_message(code=7, message='Error 9: The communication with the AVR was interrumped')
+            return True
+
+        return False
+
+
+    def __write_program(self):
+        current_page = 0
+        exit = False
+
+        # Obtiene el tiempo inicial para la carga del programa
+        while not exit:
+
+            # Envía código STX para inicio de escritura de página
+            self.__send_message(code=0, message="Sendig Page Write Command...")
+
+            error = self.__send_page_write_command()
+            if error:
+                return True
+
+            self.__send_message(code=0, message="Writing page %d of %d..." %(current_page+1, self.pages_to_write))
+            
+            # Actualiza el progreso de carga
+            if self.progress_func is not None:
+                self.progress_func(((current_page+1)*1.0)/self.pages_to_write);
+
+            # Obtiene la página a enviar
+            data_to_send = bytearray(self.hexfile.tobinarray(start = (current_page*self.page_size), size=self.page_size))
+            
+            try:
+                # Envía la página
+                self.serial_port.write(data_to_send)
+                # Lee la respuesta de un byte = ACK
+                response = bytearray(self.serial_port.read(1))
+                if len(response) != 1 and response[0] != ACK_COMMAND:
+                    self.__send_message(code=12, message='Error 12: The AVR bootloader not responds to end write page command')
+                    return True
+            except Exception as e:
+                self.__send_message(code=13, message='Error 13: The communication with the AVR was interrumped')
+                return True
+
+            # Avanza a la siguiente página
+            current_page += 1
+            # Si ya envió todas las paginas sale del ciclo.
+            if current_page == self.pages_to_write:
+                exit = True
+
+        return False
+
+
+    def __send_page_write_command(self):
+        cmd = bytearray([PAGE_WRITE_COMMAND])
+        try:
+            self.serial_port.write(cmd)
+            # Lee la respuesta de un byte = ACK
+            response = bytearray(self.serial_port.read(1))
+            if len(response) != 1 and response[0] != ACK_COMMAND:
+                self.__send_message(code=10, message='Error 10: The AVR bootloader not responds to start write page command')
+                return True
+        except Exception as e:
+            self.__send_message(code=11, message='Error 11: The communication with the AVR was interrumped')
+            return True
+
+        return False
+
+
+    def __send_end_transmission_command(self):
+        
+        cmd = bytearray([END_TRANSMISSION_COMMAND])
+
+        try:
+            self.serial_port.write(cmd)
+            # Lee la respuesta de un byte = ACK
+            response = bytearray(self.serial_port.read(1))
+            if len(response) != 1 and response[0] != ACK_COMMAND:
+                self.__send_message(code=14, message='Error 14: The AVR bootloader not responds to finish program command')
+                return True
+        except Exception as e:
+            self.__send_message(code=15, message='Error 15: The communication with the AVR was interrumped')
+            return True
+
+        return False
