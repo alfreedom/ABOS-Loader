@@ -86,8 +86,12 @@ def main(argv):
   print 'Loading "%s" file into AVR microcontroller\r\n' %(hexfile)
 
   # Ejecuta el programa cargador
-  abosloader.Run(hexfile, port, baud, verbose, update_progress)
-  print '\nBye! :D'
+  result, msg = abosloader.Run(hexfile, port, baud, verbose, update_progress)
+  print(msg)
+  if result != 0:
+  	print('¡Woops! :(\n')
+  else:
+  	print('¡Bye! :D\n')
 
   return 0
 
