@@ -6,15 +6,33 @@ program in hex format to an AVR microcontroller with ABOS Bootloader.
 
 ## Installation
 
-To install ABOS loader run the next commands in a terminal.
+ABOS Loader require python >=2.6 or python>=3.6, together the pyserial and intelhex libraries.
+Be shure that you have python2 and pip2 or python3 and pip3 in the system path.
+
+To install ABOS loader run the next commands in a terminal:
+
+For python2:
 
     git clone https://github.com/alfreedom/abosloader
     cd abosloader
-    make
+    make python2
     sudo make install
 
-The default installatin path is "/opt/abosloader/".
-The installation creates a symbolic link in "/usr/local/bin" with **_abosl_**.
+For python3:
+
+    git clone https://github.com/alfreedom/abosloader
+    cd abosloader
+    make python3
+    sudo make install
+
+
+This will generate the abos.pyc, abosloader.pyc and abosl files, also install
+the program in the default installation path: **_/opt/abosloader/_**.
+Also, the installation creates a symbolic link in "/usr/local/bin" with **_abosl_**.
+
+To tes the istallation run:
+
+    abosl -?
 
 ## Usage
 
@@ -28,7 +46,7 @@ The installation creates a symbolic link in "/usr/local/bin" with **_abosl_**.
     --verbose                    Show output verbose
 
 ### Arguments:
-    HEXFILE Name of the hex file to load
+    HEXFILE: Path to the hex file to load into the avr
 
 ### Example
 With default baudrate (**_38400_**):
@@ -41,23 +59,11 @@ Specifying other baudrate:
 or
 
     abosl -p /dev/ttyUSB0 -b 19200 myProgram.hex
-## Installation
-ABOS Loader require python2, between pyserial and intelhex libraries.
-Be shure that you have python2 and pip2 in the system path.
-
-    pip2 install pyserial intelhex
-    cd abosloader
-    make all
-    sudo make install
-
-This will generate the abos.pyc, abosloader.pyc and abosl files, also install
-the program in **_/opt/abosloader/_** path.
-
-To tes the istallation run:
-
-    abosl -?
 
 ## Supported Platforms
-  * Linux
-  * MacOS
----
+
+|  OS     | Supported |
+|---------|:---------:|
+|  Linux  | Yes       |
+|  MacOS  | Yes       |
+| Windows |  No       |
