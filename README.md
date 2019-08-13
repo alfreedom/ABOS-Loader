@@ -11,17 +11,16 @@ Be shure that you have python2 and pip2 or python3 and pip3 in the system path.
 
 To install ABOS loader run the next commands in a terminal:
 
-For python2:
-
     git clone https://github.com/alfreedom/abosloader
     cd abosloader
+
+For python2:
+
     make python2
     sudo make install
 
 For python3:
 
-    git clone https://github.com/alfreedom/abosloader
-    cd abosloader
     make python3
     sudo make install
 

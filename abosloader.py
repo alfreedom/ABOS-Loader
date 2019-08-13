@@ -149,6 +149,7 @@ class AbosLoader:
 
     def __restart_avr(self):
         self.serial_port.setDTR(False)
+        time.sleep(.3)
         self.serial_port.setDTR(True)
         self.serial_port.setDTR(False)
 

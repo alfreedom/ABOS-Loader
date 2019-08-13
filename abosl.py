@@ -24,7 +24,7 @@
 import sys, getopt
 from abosloader import AbosLoader
 
-ABOS_LOADER_VERSION = '1.3.0'
+ABOS_LOADER_VERSION = '1.3.1'
 
 baud = 38400    # Default value defined in the avr abos bootloader
 
