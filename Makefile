@@ -35,7 +35,7 @@ clean:
 	rm -rf __pycache__/
 	rm -Rf abosl abosl.pyc abosloader.pyc
 
-python2: clean abosl.py, abosliader.py
+python2: clean abosl.py abosloader.py
 	python2 -m compileall abosloader.py abosl.py 
 	rm -rf __pycache__/
 	echo 'python2 /opt/abosloader/abosl.pyc "$$@"' > abosl
@@ -50,3 +50,17 @@ python3: clean abosl.py abosloader.py
 	echo 'python3 /opt/abosloader/abosl.pyc "$$@"' > abosl
 	chmod +x abosl
 	pip3 install intelhex pyserial
+
+python: clean abosl.py abosloader.py
+	python -m compileall abosloader.py abosl.py 
+	mv __pycache__/abosl.cpython* ./abosl.pyc
+	mv __pycache__/abosloader.cpython* ./abosloader.pyc
+	rm -rf __pycache__/
+	echo 'python /opt/abosloader/abosl.pyc "$$@"' > abosl
+	chmod +x abosl
+	python -m pip install intelhex pyserial
+
+windows: clean abosl.py abosloader.py
+	python -m pip install pyinstaller intelhex pyserial
+	pyinstaller -y -F -i abos_icon.ico -n abosloader abosl.py
+	mv dist windows

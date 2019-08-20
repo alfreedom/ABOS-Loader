@@ -1,5 +1,12 @@
 # ABOS Loader Changelog
 
+
+## [ 1.3.0 ] - 19/08/2019
+
+### Added
+- Add standalong executable for windows.
+- Add makefile target for default python version installed in the operating system (works on windows).
+
 ## [ 1.3.0 ] - 20/03/2019
 
 ### Added

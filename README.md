@@ -25,9 +25,22 @@ For python3:
     sudo make install
 
 
+For default system python installation:
+
+    make python
+    sudo make install
+
+
+For windows (need python and gnu make executable in system path):
+
+    make windows
+
 This will generate the abos.pyc, abosloader.pyc and abosl files, also install
 the program in the default installation path: **_/opt/abosloader/_**.
 Also, the installation creates a symbolic link in "/usr/local/bin" with **_abosl_**.
+
+If the windows target was run, generate a abosloader.exe into the windows folder, this is stand
+alone executable, and it's recommended to add it to the system path.
 
 To tes the istallation run:
 
@@ -59,10 +72,13 @@ or
 
     abosl -p /dev/ttyUSB0 -b 19200 myProgram.hex
 
+
+For windows, the serial por names become like COM3, COM4, COM5, and so.
+
 ## Supported Platforms
 
 |  OS     | Supported |
 |---------|:---------:|
 |  Linux  | Yes       |
 |  MacOS  | Yes       |
-| Windows |  No       |
+| Windows | Yes       |
