@@ -14,6 +14,8 @@ To install ABOS loader run the next commands in a terminal:
     git clone https://github.com/alfreedom/abosloader
     cd abosloader
 
+### Linux 
+
 For python2:
 
     make python2
@@ -30,6 +32,25 @@ For default system python installation:
     make python
     sudo make install
 
+### MacOS
+
+For python2:
+
+    make python2-osx
+    sudo make install
+
+For python3:
+
+    make python3-osx
+    sudo make install
+
+
+For default system python installation:
+
+    make python-osx
+    sudo make install
+
+### Windows
 
 For windows (need python and gnu make executable in system path):
 

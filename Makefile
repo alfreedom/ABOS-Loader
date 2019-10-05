@@ -28,12 +28,47 @@ install:  abosl abosl.pyc abosloader.pyc
 	cp abosloader.pyc /opt/abosloader
 	ln -sf /opt/abosloader/abosl /usr/local/bin/abosl
 
+install-osx: abosl abosl.pyc abosloader.pyc
+	mkdir -p ~/Library/abos
+	cp abosl ~/Library/abos
+	cp abosl.pyc ~/Library/abos
+	cp abosloader.pyc ~/Library/abos
+	ln -sf ~/Library/abos/abosl /usr/local/bin/abosl
+
 uninstall: 
 	rm -Rf /opt/abosloader
 	
 clean:
 	rm -rf __pycache__/
 	rm -Rf abosl abosl.pyc abosloader.pyc
+
+
+python2-osx: clean abosl.py abosloader.py
+	python2 -m compileall abosloader.py abosl.py 
+	rm -rf __pycache__/
+	echo 'python2 ~/Library/abos/abosl.pyc "$$@"' > abosl
+	chmod +x abosl
+	pip2 install intelhex pyserial
+
+
+python3-osx: clean abosl.py abosloader.py
+	python3 -m compileall abosloader.py abosl.py 
+	mv __pycache__/abosl.cpython* ./abosl.pyc
+	mv __pycache__/abosloader.cpython* ./abosloader.pyc
+	rm -rf __pycache__/
+	echo 'python3 ~/Library/abos/abosl.pyc "$$@"' > abosl
+	chmod +x abosl
+	pip3 install intelhex pyserial
+
+
+python-osx: clean abosl.py abosloader.py
+	python -m compileall abosloader.py abosl.py 
+	mv __pycache__/abosl.cpython* ./abosl.pyc
+	mv __pycache__/abosloader.cpython* ./abosloader.pyc
+	rm -rf __pycache__/
+	echo 'python ~/Library/abos/abosl.pyc "$$@"' > abosl
+	chmod +x abosl
+	python -m pip install intelhex pyserial
 
 python2: clean abosl.py abosloader.py
 	python2 -m compileall abosloader.py abosl.py 

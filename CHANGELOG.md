@@ -1,6 +1,15 @@
 # ABOS Loader Changelog
 
 
+## [ 1.3.0 ] - 05/10/2019
+
+### Added
+- Add Makefile targets to support installation on MacOS: 
+    make python-osx 
+    make python2-osx 
+    make python3-osx 
+    make install-osx
+
 ## [ 1.3.0 ] - 19/08/2019
 
 ### Added
