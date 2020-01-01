@@ -95,7 +95,8 @@ python: clean abosl.py abosloader.py
 	chmod +x abosl
 	python -m pip install intelhex pyserial
 
-windows: clean abosl.py abosloader.py
+windows: abosl.py abosloader.py
+	del abosl abosl.pyc abosloader.pyc
 	python -m pip install pyinstaller intelhex pyserial
 	pyinstaller -y -F -i abos_icon.ico -n abosloader abosl.py
 	mv dist windows

@@ -1,6 +1,11 @@
 # ABOS Loader Changelog
 
 
+## [ 1.4.0 ] - 31/12/2019
+
+### Added
+- Update the CPU info request for new abos bootloader firmware version, now shows the cpu model.
+
 ## [ 1.3.0 ] - 05/10/2019
 
 ### Added

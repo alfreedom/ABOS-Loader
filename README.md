@@ -1,8 +1,7 @@
-
 # ABOS Loader
 
 The ABOS Loader is a python script that communicates with a serial port and send a 
-program in hex format to an AVR microcontroller with ABOS Bootloader.
+program in hex format to an AVR microcontroller programed with ABOS Bootloader Firmware.
 
 ## Installation
 
@@ -26,7 +25,6 @@ For python3:
     make python3
     sudo make install
 
-
 For default system python installation:
 
     make python
@@ -37,30 +35,31 @@ For default system python installation:
 For python2:
 
     make python2-osx
-    sudo make install
+    sudo make install-osx
 
 For python3:
 
     make python3-osx
-    sudo make install
-
+    sudo make install-osx
 
 For default system python installation:
 
     make python-osx
-    sudo make install
+    sudo make install-osx
+
+This will generate the abos.pyc, abosloader.pyc and abosl files, also install
+the program in the default installation path: **_/opt/abosloader/_** for Linux and
+**_~/Library/abos/abosl_** for Mac OS.
+Also, the installation creates a symbolic link in "/usr/local/bin" with **_abosl_**.
 
 ### Windows
 
-For windows (need python and gnu make executable in system path):
+For windows you needs python and gnu make executable in windows system path. 
+GNU make installer can be downloaded from [here](http://gnuwin32.sourceforge.net/packages/make.htm):
 
     make windows
 
-This will generate the abos.pyc, abosloader.pyc and abosl files, also install
-the program in the default installation path: **_/opt/abosloader/_**.
-Also, the installation creates a symbolic link in "/usr/local/bin" with **_abosl_**.
-
-If the windows target was run, generate a abosloader.exe into the windows folder, this is stand
+If the windows target was run, it will generate a abosloader.exe into the windows folder, this is stand
 alone executable, and it's recommended to add it to the system path.
 
 To tes the istallation run:
@@ -94,7 +93,7 @@ or
     abosl -p /dev/ttyUSB0 -b 19200 myProgram.hex
 
 
-For windows, the serial por names become like COM3, COM4, COM5, and so.
+For windows, the serial port names become like COM3, COM4, COM5, and so.
 
 ## Supported Platforms
 

@@ -24,7 +24,7 @@
 import sys, getopt
 from abosloader import AbosLoader
 
-ABOS_LOADER_VERSION = '1.3.1'
+ABOS_LOADER_VERSION = '1.4.0'
 
 baud = 38400    # Default value defined in the avr abos bootloader
 
@@ -33,17 +33,18 @@ abos_loader = AbosLoader()
 def main(argv):
   hexfile = ''
   port = ''
+  cpu_model = ''
   verbose = False # Default verbose is to False
   baud = 38400    # Default value defined in the avr abos bootloader
 
   # Parsea las opciones de la linea de comandos
   try:
-    opts, args = getopt.getopt(argv,"v?hp:b:",["port=", "baudrate=", "version", "verbose","help"])
+    opts, args = getopt.getopt(argv,"v?hp:b:c:",["port=", "baudrate=","cpu=", "version", "verbose","help"])
   except getopt.GetoptError:
     showHelp()
     sys.exit(2)
    #############################################
-
+ 
   # Procesa los argumentos pasados a la aplicación.
   for opt, arg in opts:
     if opt in ("-?", "--help"):
@@ -54,61 +55,60 @@ def main(argv):
       sys.exit()
     elif opt in ("-p", "--port"):
       port = arg
+    elif opt in ("-c", "--cpu"):
+      cpu_model = arg
     elif opt in ("-b", "--baudrate"):
       try:
         baud = int(arg)
       except:
-        abosloader_msg(0, 'Invalid baudrate "%s".\nRun abosl -? to see help.' % arg)
+        abosloader_msg(0, 'Invalid baudrate "%s".\nRun abosl -? to see help.' % arg, True)
         sys.exit()
     elif opt in ("--verbose"):
       verbose = True
 
-  # Verifica que se hayan pasado el nombre del archivo hex y el puerto serial
-  if port == '':
-    abosloader_msg(0, '###  ABOS LOADER  ###\n')
-    abosloader_msg(0, 'ERROR: serial port is not specified.\nRun abosl -? to see help.')
-    sys.exit()
-
   if not args:
-    abosloader_msg(0, '###  ABOS LOADER  ###\n')
-    abosloader_msg(0, 'ERROR: hex file is not specified.\nRun abosl -? to see help.')
+    abosloader_msg(0, '###  ABOS LOADER  ###\n', verbose=True)
+    abosloader_msg(0, 'ERROR: hex file is not specified.\nRun abosl -? to see help.', verbose=True)
     sys.exit()
 
   # Si se especificó algo distinto envía el error
   if len(args) > 1:
-    abosloader_msg(0, '###  ABOS LOADER  ###\n')
-    abosloader_msg(0, 'Too many arguments')
+    abosloader_msg(0, '###  ABOS LOADER  ###\n', verbose=True)
+    abosloader_msg(0, 'Too many arguments', verbose=True)
+    sys.exit()
+
+
+  # Verifica que se hayan especificado el nombre del puerto serial
+  if port == '':
+    abosloader_msg(0, '###  ABOS LOADER  ###\n', verbose=True)
+    abosloader_msg(0, 'ERROR: serial port is not specified.\nRun abosl -? to see help.', verbose=True)
     sys.exit()
 
   # Guarda el nombre del archivo .hex
   hexfile = args[0]
   showVersion();
-  abosloader_msg(0, '')
-  abosloader_msg(0, 'Loading "%s" file into AVR microcontroller\r\n' %(hexfile))
-
-  msg_func = None
-  if verbose:
-  	msg_func = abosloader_msg
+  abosloader_msg(0, '', verbose=True)
+  abosloader_msg(0, 'Loading "%s" file into AVR microcontroller\r\n' %(hexfile), verbose=True)
 
   # Ejecuta el programa cargador
-  error = abos_loader.run(hexfile, port, baud, verbose, update_progress, msg_func)
+  error = abos_loader.run(cpu_model, hexfile, port, baud, verbose, update_progress, abosloader_msg)
 
   if error != 0:
-  	print('¡Woops! :(\n')
+  	print('¡Woops! D:\n')
   else:
-  	print('\n¡Bye! :D\n')
+  	print('\n\n¡Done! ;)\n')
 
   return 0
 
-def abosloader_msg(code, message):
+def abosloader_msg(code, message, verbose):
 	if code != 0:
 		print('{}\n'.format(message))
-	else:
+	elif verbose:
 		print('{}'.format(message))
 
 
 def update_progress(progress):
-    barLength = 50 # Modify this to change the length of the progress bar
+    barLength = 60
     status = ""
     if isinstance(progress, int):
         progress = float(progress)
@@ -129,27 +129,33 @@ def update_progress(progress):
 	Muestra la ayuda del programa
 '''
 def showHelp():
-  print('###  ABOS LOADER  ###\n')
-  print('Opensource Loader for the ABOS Bootloader in AVR microcontrollers\n')
-  print('Usage:')
-  print('      abosl [options] HEXFILE\n')
+  showVersion()
+  print('\nUsage:')
+  print('      abosl -c <CPU_MODEL> -p <SERIAL_PORT> [options] HEXFILE\n')
   print('Options:')
-  print('    -b, --baudrate=BAUDRATE      specify the serial baudrate (default %s)' % baud)
-  print('    -p, --port=SERIAL_PORT       specify the serial port name')
-  print('    -h, -?, --help               show this help message')
-  print('    -v, --version                show the abosloader version')
-  print('    --verbose                    show output verbose\n')
+  print('    -b, --baudrate=BAUDRATE      Specify the serial baudrate (default %s)' % baud)
+  print('    -p, --port=SERIAL_PORT       Specify the serial port name')
+  print('    -h, -?, --help               Show this help message')
+  print('    -v, --version                Show the abosloader version')
+  print('    -c, --cpu=CPU_MODEL          Specify the CPU model.')
+  print('')
+  print('        Supported Models:')
+  print('           - atmega128')
+  print('           - atmega16')
+  print('           - atmega32')
+  print('')
+  print('    --verbose                    Show output verbose\n')
   print('Arguments:')
-  print('    HEXFILE    Name of the hex file to load into AVR microcontroller\n\n')
+  print('    HEXFILE    Path to the hex file to load into AVR microcontroller\n\n')
   print('Written by Alfredo Orozco  <alfredoopa@gmail.com>')
 
 '''
 	Muestra la versión del programa
 '''
 def showVersion():
-  print('###  ABOS LOADER  ###\n')
+  print('ABOS LOADER v{}'.format(ABOS_LOADER_VERSION))
   print('Opensource Loader for the ABOS Bootloader in AVR microcontrollers')
-  print('version: ' + ABOS_LOADER_VERSION)
+
 
 
 '''

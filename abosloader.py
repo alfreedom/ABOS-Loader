@@ -47,10 +47,11 @@ class AbosLoader:
         pass
 
     # Algoritmo principal para manejar la lógica de carga de un programa con el bootloader ABOS
-    def run(self, hexfile, port, baud, verbose, progress_func=None, messages_func=None):
+    def run(self, cpu_model, hexfile, port, baud, verbose, progress_func=None, messages_func=None):
         self.filename = hexfile
         self.progress_func = progress_func
         self.messages_func = messages_func
+        self.verbose = verbose 
 
         # Lee el archivo hexadecimal
         self.__send_message(code=0, message = 'Reading hex file {}...'.format(self.filename))
@@ -71,23 +72,32 @@ class AbosLoader:
         self.__restart_avr()
 
         # Envía caracter de sincronización y obtiene la respuesta desde el micro AVR
-        self.__send_message(code=0, message='Requesting MCU info...')
+        self.__send_message(code=1, message='Requesting MCU info:')
         response, error = self.__send_sync()
         if error:
             return 1
 
+        
+        if cpu_model and cpu_model != response['mcu_model']:
+            self.__send_message(code=18, message="Error 18: The cpu model specified doesn't mach with the microcontroller model: {} != {}\nRun abosl -? to see help.".format(response['mcu_model'], cpu_model))
+            self.__cancel_bootloader_mode()
+            return 1
+
+        # Lee el tamaño de la cadena del modelo del micro
         # Calcula el número de paginas a escribir.
         self.pages_to_write = program_size // response['page_size'] + (1 if program_size % response['page_size'] != 0 else 0)
         self.page_size = response['page_size']
-        self.__send_message(code=0, message='Hex file size: %d bytes' % program_size)
-        self.__send_message(code=0, message='ABOS Version in AVR: %s' % response['abos_version'])
-        self.__send_message(code=0, message='AVR memory size: %d bytes (%d KB)' % (response['flash_size'], response['flash_size']/1024))
-        self.__send_message(code=0, message='AVR Page size: %d bytes' % response['page_size'])
-        self.__send_message(code=0, message='Pages to write: %d' % self.pages_to_write)
+        print('  Hex File Size:   %d bytes' % program_size)
+        print('  MCU Model:       %s' % response['mcu_model'])
+        print('  ABOS Version:    %s' % response['abos_version'])
+        print('  AVR Memory Size: %d bytes (%d KB)' % (response['flash_size'], response['flash_size']/1024))
+        print('  AVR Page Size:   %d bytes' % response['page_size'])
+        print('  Pages to Write:  %d' % self.pages_to_write)
+        print('')
 
         # Verifica que el tamaño del programa no sea mayor que el espacio disponible en el micro
         if program_size > response['flash_size']:
-            self.__send_message(code=5, message='Error 5: The program is larger than the space available in the microcontroller.')
+            self.__send_message(code=5, message='Error 5: The program in the hex file is larger than the space available in the microcontroller: {} bytes (hex) > {} bytes (flash)'.format(program_size, response['flash_size']))
             self.__cancel_bootloader_mode()
             return 1
 
@@ -113,14 +123,14 @@ class AbosLoader:
             return 1
 
         # Muestra el tiempo de carga del programa
-        self.__send_message(code=0, message="¡Done! Program loaded in %.2f seconds" % elapsed)
+        self.__send_message(code=1, message="\n\n¡Done! Program loaded in %.2f seconds" % elapsed)
 
         return 0
 
 
     def __send_message(self, code=0, message=''):
         if self.messages_func is not None:
-            self.messages_func(code=code, message=message)
+            self.messages_func(code=code, message=message, verbose=self.verbose)
 
 
     def __read_hexfile(self):
@@ -130,7 +140,7 @@ class AbosLoader:
                 self.hexfile.fromfile(self.filename,format='hex')
         except (IOError, intelhex.IntelHexError):
                 e = sys.exc_info()[1]
-                self.__send_message(code=1, message='Error 1: reading hex file: "%s"' % e)
+                self.__send_message(code=1, message='Error 1: Could not read the hex file: "%s"' % e)
                 return None, True
 
         return False
@@ -140,8 +150,8 @@ class AbosLoader:
         # Intenta abrir el puerto serie.
         try:
             self.serial_port = serial.Serial(port, baudrate, timeout=.3)
-        except serial.SerialException as e:
-            self.__send_message(code=2, message='Error 2: opening port %s' % self.port)
+        except serial.serialutil.SerialException as e:
+            self.__send_message(code=2, message='Error 2: Could not open port %s' % port)
             return True
 
         return False
@@ -155,37 +165,44 @@ class AbosLoader:
 
 
     def __send_sync(self):
+        ret = {}
         maxtries = 5
+        mcu_cpu_len = 20
+        mcu_info_size = 28
+
         # Envía el caracter de sincronización maxtries veces
         cmd = bytearray([SYNC_COMMAND])
         for item in range(maxtries):  
             self.serial_port.write(cmd)
-            response = bytearray(self.serial_port.read(8))
-            if len(response) == 8:
+            response = bytearray(self.serial_port.read(mcu_info_size))
+            if len(response) == mcu_info_size:
                 break;
 
-        # Si no responde con 8 bytes muestra error
-        if len(response) != 8:
-            self.__send_message(code=3, message='Error 3: Communication error with the ABOS bootloader, responds with %d' % len(response))
+        # Si no responde con mcu_info_size bytes muestra error
+        if len(response) != mcu_info_size:
+            self.__send_message(code=3, message='Error 3: Communication error with the ABOS bootloader, device not responds')
             return None, True
 
         # Si no responde con ACK muestra error
         if response[0] != ACK_COMMAND:
-            self.__send_message(code=4, message='Error 4: The AVR bootloader not responds')
+            self.__send_message(code=4, message='Error 4: AVR bootloader bad response')
             return None, True
 
-        # Guarda el tamaño de página de la respuesta en bytes
-        ret = {}
-        ret['page_size'] = response[2] << 8
-        ret['page_size'] |= response[1]
-
-        # Guarda el espacio de memoria disponible para el programa en bytes
-        ret['flash_size'] = response[4] << 8
-        ret['flash_size'] |= response [3]
-        ret['flash_size'] *= 1024
 
         # Guarda la versión del Bootloader grabada en el micro
-        ret['abos_version'] = '%d.%d.%d' % (response[5], response[6], response[7])
+        ret['abos_version'] = '%d.%d.%d' % (response[1], response[2], response[3])
+        # Guarda el modelo del microcontrolador
+        ret['mcu_model'] = ''.join([chr(x) for x in response[4:23] if x ])
+        # Guarda el tamaño de página de la respuesta en bytes
+        ret['page_size'] = response[mcu_cpu_len+5] << 8
+        ret['page_size'] |= response[mcu_cpu_len+4]
+
+        # Guarda el espacio de memoria disponible para el programa en bytes
+        ret['flash_size'] = response[mcu_cpu_len+7] << 8
+        ret['flash_size'] |= response [mcu_cpu_len+6]
+        ret['flash_size'] *= 1024
+
+       
 
         return ret, False
 
@@ -215,10 +232,10 @@ class AbosLoader:
             # Lee la respuesta de un byte = ACK
             response = bytearray(self.serial_port.read(1))
             if len(response) != 1 and response[0] != ACK_COMMAND:
-                self.__send_message(code=6, message='Error 8: The AVR bootloader not responds to Cancel Bootloader command')
+                self.__send_message(code=8, message='Error 8: The AVR bootloader not responds to Cancel Bootloader command')
                 return True
         except Exception as e:
-            self.__send_message(code=7, message='Error 9: The communication with the AVR was interrumped')
+            self.__send_message(code=9, message='Error 9: The communication with the AVR was interrumped')
             return True
 
         return False
