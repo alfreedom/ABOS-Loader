@@ -5,7 +5,7 @@ program in hex format to an AVR microcontroller programed with ABOS Bootloader F
 
 ## Installation
 
-ABOS Loader require python >=2.6 or python>=3.6, together the pyserial and intelhex libraries.
+ABOS Loader require python >=2.6 or python>=3.5, together the pyserial and intelhex libraries.
 Be shure that you have python2 and pip2 or python3 and pip3 in the system path.
 
 To install ABOS loader run the next commands in a terminal:
